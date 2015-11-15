@@ -34,9 +34,9 @@ int main(int argc, char* argv[])
 	myaddr.sin_family = AF_INET;
 	
 
-	//my_add.ai_flags = AI_PASSIVE;
+	
 	myaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	//bcopy((char *)hp->h_addr,(char*)&myaddr.sin_addr,hp->h_length);
+	
 	myaddr.sin_port = htons(atoi(argv[1]));
 	
 	len = sizeof(struct sockaddr_in);
@@ -48,10 +48,6 @@ int main(int argc, char* argv[])
 	if(send(sockfd,buf,20,0) < 0)
 		my_error("Failed to send\n");
 	
-	//memset(buf,0,sizeof(buf));
-	//recvfrom(sockfd,buf,20,0,(struct sockaddr*)&peeraddr,&len);
-
-	//printf("%s\n",buf);
 	
 
 	close(sockfd);

@@ -1,82 +1,16 @@
-/*#include<stdio.h>
-#include<sys/types.h>
-#include<sys/socket.h>
-#include<pthread.h>
-pthread_t thread[2];
-*/
-/*---- Create a passive UDP socket for the Server A----*/
-
-
-/*Global variables for creating the socket
-typedef struct address{
-	int serverAIP;
-	int serverAPort;
-}my_address;
-*/
-
-/*---- Thread for reading the file of the server when it is boot up ---
-void *serverBoot(void *arg)
-{
-	// Read the file Servera.txt
-	return NULL;
-}
-*/
-/*----- Thread for establishing a connection*
-void *serverConnect(void *arg)
-{
-	//Establish a UDP socket
-	int sd;
-	char buf[1024];
-	sd = socket(AF_INET,SOCK_DGRAM,0); // The domain arguement specifies the family of the communiation used and type argument tells which protocol to use (TCP/ UDP) and protocol arguement tells that this 										particular socket uses which differenent protocol types
-	my_address* addr = NULL;
-	addr->serverAIP = 1234;
-	addr->serverAPort = 90;
-	
-	//Address of the client
-	my_address *client_addr = malloc(sizeof(my_address));
-	int client_addrlen =  0;
-
-	//Bind the socket descriptor
-	if( bind(sd, addr,sizeof(my_address)) == -1)
-		printf("Failed to bind!!\n");
-	recvfrom(sd,buf,1,client_addrlen);
-	send(sd,buf,0);
-	return NULL;
-}
-
-void *serverSend(void *arg)
-{
-	connect();
-	send();
-
-	return NULL;
-}
-int main()
-{
-	
-*/	
-	/*pthread_create(&thread[0], NULL, serverBoot, NULL);*
-	pthread_create(&thread[1], NULL, serverConnect, NULL);
-	pthread_create(&thread[2], NULL, serverSend,NULL);
-
-
-	
-	//pthread_join(thread[0]);
-	pthread_join(thread[1],NULL);
-	//pthread_join(thread[2]);
-	
-	return 0;
-}
-*/
 #include<stdio.h>
 #include<stdlib.h>
-/*--- Data structure for storing the neighbouring information ----*/
-typedef struct server{
-	struct server *next;
-	struct server *prev;
-	void *data;
-}serverA;
-
+#include<unistd.h>
+#include<errno.h>
+#include<sys/wait.h>
+#include<string.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netdb.h>
+#include<arpa/inet.h>
+#include<netinet/in.h>
+#define TCP_PORT 25516
+#define UDP_PORT_A 21516
 /*--- Data structure for storing the details ----*/
 
 typedef struct srvA{
@@ -84,14 +18,171 @@ typedef struct srvA{
 	int link_cost;
 }srvrAdat;
 
-/*---- Append the node to the linked list ----*/
-void append()
+void my_error(char *msg)
 {
-	// to head
-	// to other node
+	perror(msg);
+	exit(1);
+}
+/*----Global socket structure ----*/
+struct sockaddr_in myaddr_TCP;
+struct sockaddr_in myaddr_UDP;
+struct sockaddr_in peeraddr;
+
+
+/*---- Global Variables ----*/
+char sendbuf[1024];
+char recvbuf[1024];
+
+/*--- Data structure for storing the neighbouring information ----*/
+typedef struct server{
+	struct server *next;
+	srvrAdat *data;
+}serverA;
+
+/*---- Head Node ----*/
+serverA head;
+
+/*---- Append the node to the linked list ----*/
+void append(serverA *node)
+{
+	serverA *tempnode;
+	tempnode = &head;
+	if(tempnode->next == NULL){
+		tempnode->next = node;
+		tempnode->data = node->data;
+		node->next = NULL;
+	}
+	else{
+		while(tempnode->next != NULL){
+			
+			tempnode = tempnode->next;
+		}	
+		tempnode->data = node->data;
+		tempnode->next = node;
+		node->next = NULL;
+	}
+	
+}
+/*---- Server TCP Socket ----*/
+void create_tcp_socket()
+{
+	int tcpfd,len;
+	
+	//struct sockaddr_in peeraddr;
+	//struct hostent* hp;
+
+	//char buf[20];// = "Accept my request p";
+
+	tcpfd = socket(AF_INET, SOCK_STREAM,0);
+	if(tcpfd < 0)
+		my_error("Could not establish a socket\n");
+	memset(&myaddr_TCP,0,sizeof(myaddr_TCP));
+	
+	myaddr_TCP.sin_family = AF_INET;
+	
+	myaddr_TCP.sin_addr.s_addr = inet_addr("127.0.0.1");
+	
+	myaddr_TCP.sin_port = htons(TCP_PORT);
+	
+	len = sizeof(struct sockaddr_in);
+	usleep(100000);
+	// send the request on the created socket
+	if( connect(tcpfd,(struct sockaddr*)&myaddr_TCP,len) < 0)
+		my_error("Failed to connect\n");
+		
+	serverA *tempnode;
+	tempnode = &head;
+	char tempbuf[10];
+	while(tempnode->next != NULL ){
+		
+		strcpy(sendbuf,tempnode->data->node_name);
+		sprintf(tempbuf,"%d", tempnode->data->link_cost);
+		strcat(sendbuf,"  ");
+		strcat(sendbuf,tempbuf);
+		usleep(1000);
+		if(send(tcpfd,sendbuf,20,0) < 0)
+			my_error("Failed to send\n");
+		usleep(1000);
+		tempnode = tempnode->next;
+		
+	}
+	if(send(tcpfd,"exit",10,0) < 0)
+		my_error("Failed to send\n");
+	close(tcpfd);
+}
+
+/*---- Server UDP socket----*/
+void sever_UDP_Static(int broadcaston)
+{
+	
+		int udpfd,fromlen, n,len;
+		//struct sockaddr_in myaddr;
+		//struct sockaddr_in peeraddr;
+		//struct hostent *hp;
+		
+		udpfd = socket(PF_INET,SOCK_DGRAM,0);
+		if(udpfd < 0)
+			my_error("Could not establish a socket\n");
+
+
+		len = sizeof(myaddr_UDP);
+		bzero(&myaddr_UDP, len);
+		myaddr_UDP.sin_family = AF_INET;
+		myaddr_UDP.sin_port = htons(UDP_PORT_A);
+		myaddr_UDP.sin_addr.s_addr = INADDR_ANY;
+		
+		if( bind(udpfd, (struct sockaddr*)&myaddr_UDP, (int)sizeof(myaddr_UDP)) < 0)
+			my_error("Binding unsuccessfull\n");
+		
+		
+		fromlen = (sizeof(peeraddr));
+		
+		while(1){
+			n = recvfrom(udpfd,(void *)recvbuf,sizeof(recvbuf),0,(struct sockaddr*)&peeraddr,(socklen_t *)&fromlen);
+			//sendto(udpfd,"",1,0,(struct sockaddr *) &peeraddr,fromlen);
+			//usleep(1000000);
+			if(n<0)
+				my_error("Failed to receive\n");
+				
+			if(broadcaston != 0){
+				
+				char name[10],link[10];
+				if(strcmp(recvbuf,"exit") == 0)
+					break;
+				sscanf(recvbuf,"%s\t%s",name,link);
+				
+				printf("%s\t%s\n",name,link);		
+			}
+			else 
+				break;
+		}
+		close(udpfd);
 	
 }
 
+/*---- Print the elements of the linked list ----*/
+/*void print_list(serverB hd)
+{
+	serverB *tempnode;
+	tempnode = &hd;
+	while(tempnode->next != NULL ){
+		printf("The %s has a link cost of %d\n",tempnode->data->node_name, tempnode->data->link_cost);
+		tempnode = tempnode->next;
+	}
+}
+*/
+
+/*
+void print_list(serverA hd)
+{
+	serverA *tempnode;
+	tempnode = &hd;
+	while(tempnode->next != NULL ){
+		printf("The %s has a link cost of %d\n",tempnode->data->node_name, tempnode->data->link_cost);
+		tempnode = tempnode->next;
+	}
+}
+*/
 /*---- Read the file ServerA.txt as it is ----*/
 
 void serverBootUp()
@@ -99,12 +190,13 @@ void serverBootUp()
 	char buf[1024];
 	FILE *fp = NULL;
 	fp = fopen("serverA.txt","r");
-	
+	head.next = NULL;
+	head.data = NULL;
 			
 	while(fgets(buf,sizeof(buf),fp) != NULL)
 	{
 		serverA *a = (serverA *)malloc(sizeof(serverA));
-		srvrAdat *adat = (srvrAdat *)malloc(sizeof(serverA));
+		srvrAdat *adat = (srvrAdat *)malloc(sizeof(srvrAdat));
 		
  		sscanf(buf,"%s\t%d", adat->node_name,&adat->link_cost);
  		printf("%s \t %d \n",adat->node_name, adat->link_cost);
@@ -121,5 +213,11 @@ int main()
 {
 	
 	serverBootUp();
+	//print_list(head);
+	sever_UDP_Static(0);
+	create_tcp_socket();
+		
+	printf("Edge----Cost\n");
+	sever_UDP_Static(1);
 	return 0;
 }
