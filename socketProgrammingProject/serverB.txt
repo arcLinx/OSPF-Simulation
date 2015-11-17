@@ -1,4 +1,3 @@
-serverA 	23
-serverB 	34
-serverC		45
-serverD		50
+serverA 	20
+serverC		30
+serverD		15

@@ -30,18 +30,41 @@ int main(int argc, char* argv[])
 	bzero(&myaddr, len);
 	myaddr.sin_family = AF_INET;
 	myaddr.sin_port = htons(atoi(argv[1]));
-	myaddr.sin_addr.s_addr = INADDR_ANY;//inet_addr("10.123.66.117");
+	
+	myaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	fromlen = (sizeof(myaddr));
+	char ipstr[20];
+	int port;
+	int check = getsockname(sockfd,(struct sockaddr*)&myaddr,(socklen_t *)&fromlen);
+	
+	//struct sockaddr_in *s = (struct sockaddr_in *)&myaddr;
+	port = ntohs(myaddr.sin_port);
+	inet_ntop(AF_INET, &myaddr.sin_addr, ipstr, sizeof ipstr);
+	
+	printf("Peer IP address: %s\n", ipstr);
+	printf("Peer port      : %d\n", port);
+	
+	//inet_addr("10.123.66.117");
 	//bcopy((char *)hp->h_addr,(char*)&myaddr.sin_addr,hp->h_length);     // short, network byte order
 	//myaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	
 	if(bind(sockfd, (struct sockaddr*)&myaddr, (int)sizeof(myaddr)) < 0)
 		my_error("Binding unsuccessfull\n");
-
+	
+	
 	if( listen(sockfd,10) < 0)
 		my_error("Failed to listen\n");
+		
 	int childfd;
-	fromlen = (sizeof(peeraddr));
-	childfd = accept(sockfd,(struct sockaddr*)&peeraddr,&fromlen);
+	
+	childfd = accept(sockfd,(struct sockaddr*)&peeraddr,(socklen_t *)&fromlen);
+	
+	
+	
+	
+	
+//	getsockname(sockfd, struct sockaddr *addr, socklen_t *addrlen);
+	
 	if(childfd < 0)
 		my_error("Failed to accept\n");
 	

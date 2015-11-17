@@ -1,10 +1,31 @@
-all:
-	gcc -o server -g server.o 
-    gcc -g -o serverA serverA.c
-    gcc -g -o serverB serverB.c
-    gcc -g -o serverC serverC.c
-    gcc -g -o serverD serverD.c
-    gcc -g -o client client.c
+serverA: serverA.o serverB serverC serverD client
+	gcc -o serverA -g serverA.o
 
+serverA.o: serverA.c
+	gcc -g -c -Wall serverA.c
+
+serverB: serverB.o 
+	gcc -o serverB -g serverB.o
+
+serverB.o: serverB.c
+	gcc -g -c -Wall serverB.c
+	
+serverC: serverC.o 
+	gcc -o serverC -g serverC.o
+
+serverC.o: serverC.c
+	gcc -g -c -Wall serverC.c
+
+serverD: serverD.o 
+	gcc -o serverD -g serverD.o
+
+serverD.o: serverD.c
+	gcc -g -c -Wall serverD.c
+	
+client: client.o 
+	gcc -o client -g client.o
+
+client.o: client.c
+	gcc -g -c -Wall client.c
 clean:
-    rm -f *.o 
+	rm -f *.o serverA serverB serverC serverD client

@@ -9,7 +9,10 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include "port.h"
+int server_tcp_dynamic_port;
 
+//int server_tcp_dynamic_port;
 /*---- All the static ports in the network ----*/
 
 #define TCP_PORT 25516
@@ -38,6 +41,16 @@ typedef struct allserver{
 
 /*--- Global head ---*/
 clientlist head;
+
+/*---- Peer address and IP address ----*/
+char peer_ip_address[20];
+int peer_port;
+
+
+/*---- host address and IP address ----*/
+struct in_addr **host_addr;
+char host_ip[100];
+
 
 /*---- Global variables*/
 int adjacency[4][4];
@@ -85,7 +98,7 @@ void load_adjacency(int i,clientdet *clist)
 
 
 /*---- TCP Socket ---*/
-void create_tcp_socket()
+void create_tcp_socket(char *server_name)
 {
 	int fromlen,tcpfd, n,len;
 	//struct sockaddr_in myaddr;
@@ -115,6 +128,18 @@ void create_tcp_socket()
 		
 		if(childfd < 0)
 			my_error("Failed to accept\n");
+		
+		/*---- Get the peer address to be used ----*/
+		getpeername(childfd, (struct sockaddr*)&peeraddr,(socklen_t *) &fromlen);
+		struct sockaddr_in *s = (struct sockaddr_in *)&peeraddr;
+		server_tcp_dynamic_port = ntohs(s->sin_port);
+		inet_ntop(AF_INET, &s->sin_addr, peer_ip_address, sizeof peer_ip_address);
+		//int flag =0;
+		
+		printf("The Client receives neighbor information from the %s with TCP port number %d and IP address %s\n",server_name,server_tcp_dynamic_port,peer_ip_address);
+		printf("The %s has the following neighbor information:\n",server_name);
+		printf("Neighbour------Cost\n");
+		
 		while(1){
 			memset(recvbuf,0,sizeof(recvbuf));
 			n = recv(childfd,recvbuf,sizeof(recvbuf),0);
@@ -128,7 +153,7 @@ void create_tcp_socket()
 			clientlist *alist = (clientlist *)malloc(sizeof(clientlist));
 
 			sscanf(recvbuf,"%s\t%d", a->node_name,&a->link_cost);
-			
+			printf("%s\t%d\n", a->node_name,a->link_cost);
 			alist->data = a;
 			load_adjacency(i,a);
 			append(alist);
@@ -146,7 +171,7 @@ void create_udp_socket(int port, char *to_send)
 	//int fromlen; //int n;
 	//struct sockaddr_in myaddr;
 	//struct sockaddr_in peeraddr;
-	//struct hostent* hp;
+	struct hostent* hp;
 	if (to_send != NULL){
 		strcpy(sendbuf,to_send);
 		usleep(100000);
@@ -159,21 +184,28 @@ void create_udp_socket(int port, char *to_send)
 	udpfd = socket(AF_INET, SOCK_DGRAM,0);
 	if(udpfd < 0)
 		my_error("Could not establish a socket\n");
+		
+	/*----Local Host IP address and port number resolve ----*/
+	 if ( (hp = gethostbyname( "localhost" ) ) == NULL) 
+		my_error("gethostbyname");
+    
+     host_addr = (struct in_addr **) hp->h_addr_list;
+    int i;
+    for(i = 0; host_addr[i] != NULL; i++) 
+		strcpy(host_ip , inet_ntoa(*host_addr[i]) );
 
 	memset(&myaddr,0,sizeof(myaddr));
 	
 	myaddr.sin_family = SOCK_DGRAM;
 
-	myaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	myaddr.sin_addr.s_addr = inet_addr(host_ip);
 	
 	myaddr.sin_port = htons(port);
 	len = sizeof(struct sockaddr_in);
 	
 	if(sendto(udpfd, (void *)sendbuf, sizeof(sendbuf),0,(struct sockaddr *) &myaddr,len) < 0)
 		my_error("Failed to send\n");
-	//char tempbuf[20];	
 	
-	//recvfrom(udpfd,tempbuf,sizeof(tempbuf),0,(struct sockaddr*)&peeraddr,(socklen_t *)&fromlen);
 	/*TCP receive*/
 	
 	close(udpfd);
@@ -188,10 +220,13 @@ void read_serverA()
 {
 	i=0;
 	/* UDP query */
-	create_udp_socket(UDP_PORT_A,NULL);
-	/* TCP response*/
-	create_tcp_socket();
 	
+	create_udp_socket(UDP_PORT_A,NULL);
+	
+	/* TCP response*/
+	create_tcp_socket("Server A");
+	
+	printf("For this connection with Server A, The Client has TCP port number %d and IP address %s\n",TCP_PORT,host_ip);
 	
 }
 	
@@ -201,34 +236,36 @@ void read_serverA()
 void read_serverB()
 {
 	i=1;
-	/* UDP query */
+	
 	create_udp_socket(UDP_PORT_B,NULL);
 	
 	/*TCP receive*/
-	create_tcp_socket();
+	create_tcp_socket("Server B");
+	printf("For this connection with Server B, The Client has TCP port number %d and IP address %s\n",TCP_PORT,host_ip);
 
 }
 /*---read from server C ---*/
 void read_serverC()
 {
 	i=2;
-	/* UDP query */
+	
 	create_udp_socket(UDP_PORT_C,NULL);
 	
 	/*TCP receive*/
-	create_tcp_socket();
+	create_tcp_socket("Server C");
+	printf("For this connection with Server C, The Client has TCP port number %d and IP address %s\n",TCP_PORT,host_ip);
 	
 }
 /*---read from server D ---*/
 void read_serverD()
 {
 	i=3;
-	/* UDP query */
+	
 	create_udp_socket(UDP_PORT_D,NULL);
 	
 	/*TCP receive*/
-	create_tcp_socket();
-	
+	create_tcp_socket("Server D");
+	printf("For this connection with Server D, The Client has TCP port number %d and IP address %s\n",TCP_PORT,host_ip);
 	
 }
 /*Sequentially query the server and receive all the data from the servers*/
@@ -244,19 +281,10 @@ char adjacencystring_A_1[10];
 char adjacencystring_A_2[10];
 char adjacencystring_A_3[10];
 char adjacencystring_B_1[10];
-
-
 char adjacencystring_B_2[10];
-
-
 char adjacencystring_B_3[10];
-
 char adjacencystring_B_1[10];
-
-
 char adjacencystring_B_2[10];
-
-
 char adjacencystring_B_3[10];
 char adjacencystring_C_1[10];
 char adjacencystring_C_2[10];
@@ -326,10 +354,6 @@ void send_to_serverB(int i)
 		strcat(adjacencystring_B_3,"\0");
 		//create_udp_socket(UDP_PORT_B,adjacencystring_B_3);
 	}
-	
-	
-	
-	
 }
 void send_to_serverC(int i)
 {
@@ -434,25 +458,143 @@ void send_port(int port)
 		create_udp_socket(port,adjacencystring_D_3);
 	create_udp_socket(port,"exit");
 }
-
+void print_net_top(char *server_name,int port)
+{
+	printf("The Client has sent the network topology to the %s with UDP port number %d and IP address %s\n",server_name,port,peer_ip_address);
+	printf("Edge------Cost\n");
+	if (strlen(adjacencystring_A_1) != 0)
+		printf("%s\n",adjacencystring_A_1);
+	if (strlen(adjacencystring_A_2) != 0)
+		printf("%s\n",adjacencystring_A_2);
+	if (strlen(adjacencystring_A_3) != 0)
+		printf("%s\n",adjacencystring_A_3);
+	if (strlen(adjacencystring_B_1) != 0)
+		printf("%s\n",adjacencystring_B_1);
+	if (strlen(adjacencystring_B_2) != 0)
+		printf("%s\n",adjacencystring_B_2);
+	if (strlen(adjacencystring_B_3) != 0)
+		printf("%s\n",adjacencystring_B_3);
+	if (strlen(adjacencystring_C_1) != 0)
+		printf("%s\n",adjacencystring_C_1);
+	if (strlen(adjacencystring_C_2) != 0)
+		printf("%s\n",adjacencystring_C_2);
+	if (strlen(adjacencystring_C_3) != 0)
+		printf("%s\n",adjacencystring_C_3);
+	if (strlen(adjacencystring_D_1) != 0)
+		printf("%s\n",adjacencystring_D_1);
+	if (strlen(adjacencystring_D_2) != 0)
+		printf("%s\n",adjacencystring_D_2);
+	if (strlen(adjacencystring_D_3) != 0)
+		printf("%s\n",adjacencystring_D_3);
+	printf("For this connection with %s, The Client has UDP port number %d and IP address %s\n",server_name,peer_port,peer_ip_address);
+}
+void min_spanning_tree()
+{
+	int a,b,u,v,i,j,ne=1;
+	int visited[10]={0},min,mincost=0;
+	visited[0]=1;
+	
+	for(i=0;i<4;i++) 
+		for(j=0;j<4;j++)
+			if(i!=j && adjacency[i][j] == 0)
+				adjacency[i][j]=999;
+	
+	printf("Edge------Cost\n");
+	
+	while(ne < 4)
+	{
+		for(i=0,min=999;i<4;i++)
+			for(j=0;j<4;j++)
+				if(adjacency[i][j]< min)
+					if(visited[i]!=0)
+					{
+						min=adjacency[i][j];
+						a=u=i;
+						b=v=j;
+					}
+		
+		if(visited[u]==0 || visited[v]==0)
+		{
+			if(a==0)
+			{
+				if(b == 1)
+					printf("AB\t%d\n",min);
+				if (b == 2)
+					printf("AC\t%d\n",min);
+				if(b == 3)
+					printf("AD\t%d\n",min);
+			}
+			else if(a==1)
+			{
+				if(b == 0)
+					printf("BA\t%d\n",min);
+				if(b == 2)
+					printf("BC\t%d\n",min);
+				if(b == 3) 
+					printf("BD\t%d\n",min);
+			}
+			else if(a==2)
+			{
+				if(b == 0)
+					printf("CA\t%d\n",min);
+				if(b == 1)
+					printf("CB\t%d\n",min);
+				if(b == 3)
+					printf("CD\t%d\n",min);
+			}
+			else if(a==3)
+			{
+				if(b == 0)
+					printf("DA\t%d\n",min);
+				if(b == 1)
+					printf("DB\t%d\n",min);
+				if(b == 2) 
+					printf("DC\t%d\n",min);
+			}
+			mincost+=min;
+			visited[b]=1;
+			ne++;
+		}
+		adjacency[a][b]=adjacency[b][a]=999;
+	}
+	printf("The Client has calculated a tree. The tree cost is %d\n",mincost);
+}
 int main()
 {
 	/*--- Read the details from the given ---*/
+	
 	head.next = NULL;
 	head.data = NULL;
 	memset(adjacency,0,sizeof(adjacency));
+	struct hostent* hp;
+	/*----Local Host IP address and port number resolve ----*/
+	 if ( (hp = gethostbyname( "localhost" ) ) == NULL) 
+		my_error("gethostbyname Failed \n");
+    
+     host_addr = (struct in_addr **) hp->h_addr_list;
+    int i;
+    for(i = 0; host_addr[i] != NULL; i++) 
+		strcpy(host_ip , inet_ntoa(*host_addr[i]) );
+		
+	printf("The Client has TCP port number %d and IP address %s\n",TCP_PORT,host_ip);
 	
 	read_from_servers();
 	/*Flatten the list*/
 	broadcast();
 	
 	send_port(UDP_PORT_A);
+	
+	
 	send_port(UDP_PORT_B);
+	
+	
 	send_port(UDP_PORT_C);
 	send_port(UDP_PORT_D);
+	print_net_top("serverA",UDP_PORT_A);
+	print_net_top("serverB",UDP_PORT_B);
+	print_net_top("serverC",UDP_PORT_C);
+	print_net_top("serverD",UDP_PORT_D);
 	
-	
-	
-	
+	min_spanning_tree();
 	return 0;
 }

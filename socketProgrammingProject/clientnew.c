@@ -1,61 +1,89 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<errno.h>
-#include<sys/wait.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <netdb.h>
-#include <arpa/inet.h>
+#include <sys/types.h>
 #include <netinet/in.h>
-#define UDP_PORT 1234
+#include <sys/socket.h>
 
-void my_error(char *msg)
+#include <arpa/inet.h>
+
+#define PORT "3490" // the port client will be connecting to 
+
+#define MAXDATASIZE 100 // max number of bytes we can get at once 
+
+// get sockaddr, IPv4 or IPv6:
+void *get_in_addr(struct sockaddr *sa)
 {
-	perror(msg);
-	exit(1);
+    if (sa->sa_family == AF_INET) {
+        return &(((struct sockaddr_in*)sa)->sin_addr);
+    }
+
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
-typedef struct pass{
-	char name[10];
-	int age;
-}pass1;
 
-
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-	int sockfd, fromlen, n,len;
-	struct sockaddr_in myaddr;
-	struct sockaddr_in peeraddr;
-	//struct hostent* hp;
+    int sockfd, numbytes;  
+    char buf[MAXDATASIZE];
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+    char s[INET6_ADDRSTRLEN];
 
-	char buf[20];
-	pass1 p1;
+    if (argc != 2) {
+        fprintf(stderr,"usage: client hostname\n");
+        exit(1);
+    }
 
-	sockfd = socket(AF_INET, SOCK_DGRAM,0);
-	if(sockfd < 0)
-		my_error("Could not establish a socket\n");
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
 
-	memset(&myaddr,0,sizeof(myaddr));
-	
-	myaddr.sin_family = SOCK_DGRAM;
+    if ((rv = getaddrinfo(argv[1], PORT, &hints, &servinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return 1;
+    }
 
-	myaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	
-	myaddr.sin_port = htons(UDP_PORT);
-	fgets(buf,sizeof(buf),stdin);
-	len = sizeof(struct sockaddr_in);
-	
-	if(sendto(sockfd, (void *)buf, sizeof(buf),0,(struct sockaddr *) &myaddr,len) < 0)
-		my_error("Failed to send\n");
-	memset(buf,0,sizeof(buf));
-	n = recvfrom(sockfd,buf,sizeof(buf),0,(struct sockaddr*)&peeraddr,(socklen_t *)&fromlen);
-	
-	sscanf(buf,"%s\t%d",p1.name,&p1.age);
-	printf("Name: %s\t Age: %d\n",p1.name,p1.age); 
-	
+    // loop through all the results and connect to the first we can
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+        if ((sockfd = socket(p->ai_family, p->ai_socktype,
+                p->ai_protocol)) == -1) {
+            perror("client: socket");
+            continue;
+        }
 
-	close(sockfd);
-	
-	return 0;
+        if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(sockfd);
+            perror("client: connect");
+            continue;
+        }
+
+        break;
+    }
+
+    if (p == NULL) {
+        fprintf(stderr, "client: failed to connect\n");
+        return 2;
+    }
+
+    inet_ntop(p->ai_family, get_in_addr((struct sockaddr *)p->ai_addr),
+            s, sizeof s);
+    printf("client: connecting to %s\n", s);
+
+    freeaddrinfo(servinfo); // all done with this structure
+
+    if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+        perror("recv");
+        exit(1);
+    }
+
+    buf[numbytes] = '\0';
+
+    printf("client: received '%s'\n",buf);
+
+    close(sockfd);
+
+    return 0;
 }

@@ -9,7 +9,7 @@
 #include<netdb.h>
 #include<arpa/inet.h>
 #include<netinet/in.h>
-
+#include "port.h"
 
 #define TCP_PORT 25516
 #define UDP_PORT_B 22516
@@ -24,6 +24,15 @@ typedef struct srvB{
 	char node_name[10];
 	int link_cost;
 }srvrBdat;
+
+
+/*---- Peer address and IP address ----*/
+char peer_ip_address[20];
+int peer_port;
+
+/*---- host address and IP address ----*/
+struct in_addr **host_addr;
+char host_ip[100];
 
 /*----Global socket structure ----*/
 struct sockaddr_in myaddr_TCP;
@@ -87,8 +96,8 @@ void create_tcp_socket()
 	myaddr_TCP.sin_port = htons(TCP_PORT);
 	
 	len = sizeof(struct sockaddr_in);
-	usleep(1000);
-	// send the request on the created socket
+	usleep(100000);
+	
 	if( connect(tcpfd,(struct sockaddr*)&myaddr_TCP,len) < 0)
 		my_error("Failed to connect\n");
 		
@@ -101,10 +110,10 @@ void create_tcp_socket()
 		sprintf(tempbuf,"%d", tempnode->data->link_cost);
 		strcat(sendbuf,"  ");
 		strcat(sendbuf,tempbuf);
-		usleep(1000);
+		usleep(100000);
 		if(send(tcpfd,sendbuf,20,0) < 0)
 			my_error("Failed to send\n");
-		usleep(1000);
+		usleep(100000);
 		tempnode = tempnode->next;
 		
 	}
@@ -136,7 +145,7 @@ void sever_UDP_Static(int broadcaston)
 		if( bind(udpfd, (struct sockaddr*)&myaddr_UDP, (int)sizeof(myaddr_UDP)) < 0)
 			my_error("Binding unsuccessfull\n");
 		
-		
+		int flag = 0;
 		fromlen = (sizeof(peeraddr));
 		while(1){
 			n = recvfrom(udpfd,(void *)recvbuf,sizeof(recvbuf),0,(struct sockaddr*)&peeraddr,(socklen_t *)&fromlen);
@@ -145,8 +154,21 @@ void sever_UDP_Static(int broadcaston)
 			if(n<0)
 				my_error("Failed to receive\n");
 				
+			/*---- Get the peer address to be used ----*/
+			getpeername(udpfd, (struct sockaddr*)&peeraddr,(socklen_t *) &fromlen);
+			struct sockaddr_in *s = (struct sockaddr_in *)&peeraddr;
+			if(broadcaston == 1)
+				peer_port = ntohs(s->sin_port);
+			else
+				server_tcp_dynamic_port = ntohs(s->sin_port);
+			inet_ntop(AF_INET, &s->sin_addr, peer_ip_address, sizeof peer_ip_address);	
+							
 			if(broadcaston != 0){
-				
+				if(flag ==0){
+					printf("The server B has received the network topology from the Client with UDP port number %d and %s IP address as follows:\n",peer_port,peer_ip_address);
+					printf("Edge------Cost\n");
+					flag =1;
+				}
 				char name[10],link[10];
 				if(strcmp(recvbuf,"exit") == 0)
 					break;
@@ -181,21 +203,30 @@ void serverBootUp()
 	fp = fopen("serverB.txt","r");
 	head.next = NULL;
 	head.data = NULL;
-			
+	struct hostent *hp;
+	 if ((hp = gethostbyname( "localhost" ) ) == NULL) 
+		my_error("gethostbyname");
+    
+     host_addr = (struct in_addr **) hp->h_addr_list;
+    int i;
+    for(i = 0; host_addr[i] != NULL; i++) 
+		strcpy(host_ip , inet_ntoa(*host_addr[i]) );
+		
+	printf("The Server B is up and running\n");
+	printf("The Server B has the following neighbor information:\n");
+	printf("Neighbor------Cost\n");
 	while(fgets(buf,sizeof(buf),fp) != NULL)
 	{
 		serverB *b = (serverB *)malloc(sizeof(serverB));
 		srvrBdat *bdat = (srvrBdat *)malloc(sizeof(srvrBdat));
-		
- 		sscanf(buf,"%s\t%d", bdat->node_name,&bdat->link_cost);
- 		
+		sscanf(buf,"%s\t%d", bdat->node_name,&bdat->link_cost);
  		b->data = bdat;
- 		//printf("%s \t %d \n",b->data->node_name, b->data->link_cost);
+ 		printf("%s\t%d\n",b->data->node_name, b->data->link_cost);
  		append(b);
 
 	}
 }
-
+int server_tcp_dynamic_port;
 int main()
 {
 	
@@ -203,9 +234,10 @@ int main()
 	//print_list(head);
 	sever_UDP_Static(0);
 	create_tcp_socket();
-		
-	printf("Edge----Cost\n");
+	printf("The Server B finishes sending its neighbor information to the Client with TCP port number %d and IP address %s\n",TCP_PORT,peer_ip_address);
+	printf("For this connection with the Client, the Server B has TCP port number %d and IP address %s\n",server_tcp_dynamic_port,host_ip);
 	sever_UDP_Static(1);
+	printf("For this connection with Client, the Server B has UDP port number %d and IP address %s\n",UDP_PORT_B,host_ip);
 	
 	return 0;
 }

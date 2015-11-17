@@ -33,9 +33,18 @@ int main(int argc, char* argv[])
 	
 	myaddr.sin_family = AF_INET;
 	
-
-	
-	myaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	struct in_addr **addr_list;
+    char ip[100];
+             
+    if ( (hp = gethostbyname( "localhost" ) ) == NULL) 
+		my_error("gethostbyname");
+    
+     addr_list = (struct in_addr **) hp->h_addr_list;
+     int i;
+    for(i = 0; addr_list[i] != NULL; i++) 
+		strcpy(ip , inet_ntoa(*addr_list[i]) );
+        
+    myaddr.sin_addr.s_addr = inet_addr(ip);
 	
 	myaddr.sin_port = htons(atoi(argv[1]));
 	

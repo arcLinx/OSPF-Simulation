@@ -1,2 +1,1 @@
-serverA 	23
-serverD		50
+serverB 	15
