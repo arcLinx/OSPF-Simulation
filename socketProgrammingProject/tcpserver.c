@@ -35,14 +35,7 @@ int main(int argc, char* argv[])
 	fromlen = (sizeof(myaddr));
 	char ipstr[20];
 	int port;
-	int check = getsockname(sockfd,(struct sockaddr*)&myaddr,(socklen_t *)&fromlen);
-	
 	//struct sockaddr_in *s = (struct sockaddr_in *)&myaddr;
-	port = ntohs(myaddr.sin_port);
-	inet_ntop(AF_INET, &myaddr.sin_addr, ipstr, sizeof ipstr);
-	
-	printf("Peer IP address: %s\n", ipstr);
-	printf("Peer port      : %d\n", port);
 	
 	//inet_addr("10.123.66.117");
 	//bcopy((char *)hp->h_addr,(char*)&myaddr.sin_addr,hp->h_length);     // short, network byte order
@@ -59,8 +52,13 @@ int main(int argc, char* argv[])
 	
 	childfd = accept(sockfd,(struct sockaddr*)&peeraddr,(socklen_t *)&fromlen);
 	
+	int check = getsockname(sockfd,(struct sockaddr*)&myaddr,(socklen_t *)&fromlen);
 	
+	port = ntohs(myaddr.sin_port);
+	inet_ntop(AF_INET, &myaddr.sin_addr, ipstr, sizeof ipstr);
 	
+	printf("Peer IP address: %s\n", ipstr);
+	printf("Peer port      : %d\n", port);
 	
 	
 //	getsockname(sockfd, struct sockaddr *addr, socklen_t *addrlen);
