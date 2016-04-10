@@ -1,2 +1,0 @@
-serverA 	10
-serverB 	30

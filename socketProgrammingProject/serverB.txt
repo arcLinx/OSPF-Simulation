@@ -1,3 +1,0 @@
-serverA 	20
-serverC		30
-serverD		15

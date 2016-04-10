@@ -1,8 +1,0 @@
-#include<stdio.h>
-
-dextern int x;
-
-int main ()
-{
-	return 0;
-}
